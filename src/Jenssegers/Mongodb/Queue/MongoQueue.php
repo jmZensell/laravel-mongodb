@@ -49,6 +49,44 @@ class MongoQueue extends DatabaseQueue
     }
 
     /**
+     * Create an array to insert for the given job.
+     *
+     * @param  string|null  $queue
+     * @param  string  $payload
+     * @param  int  $availableAt
+     * @param  int  $attempts
+     * @return array
+     */
+    protected function buildDatabaseRecord($queue, $payload, $availableAt, $attempts = 0)
+    {
+        $res = parent::buildDatabaseRecord($queue, $payload, $availableAt, $attempts);
+        $res['unique_id'] = md5($payload);
+        return $res;
+    }
+
+    /**
+     * Push a new job onto the queue.
+     *
+     * @param  string  $job
+     * @param  mixed   $data
+     * @param  string  $queue
+     * @return mixed
+     */
+    public function push($job, $data = '', $queue = null)
+    {
+        $payload = $this->createPayload($job, $data);
+        $id = md5($payload);
+        $doc = $this->database->getCollection($this->table)->findOne(
+            [
+                'unique_id' => $id,
+            ]
+        );
+        if (!$doc) {
+            return $this->pushToDatabase(0, $queue, $payload);
+        }
+    }
+
+    /**
      * Get the next available job for the queue and mark it as reserved.
      *
      * When using multiple daemon queue listeners to process jobs there
