@@ -49,13 +49,7 @@ class MongoQueue extends DatabaseQueue
     }
 
     /**
-     * Create an array to insert for the given job.
-     *
-     * @param  string|null  $queue
-     * @param  string  $payload
-     * @param  int  $availableAt
-     * @param  int  $attempts
-     * @return array
+     * @inheritdoc
      */
     protected function buildDatabaseRecord($queue, $payload, $availableAt, $attempts = 0)
     {
@@ -65,26 +59,22 @@ class MongoQueue extends DatabaseQueue
     }
 
     /**
-     * Push a new job onto the queue.
-     *
-     * @param  string  $job
-     * @param  mixed   $data
-     * @param  string  $queue
-     * @return mixed
+     * @inheritdoc
      */
     public function push($job, $data = '', $queue = null)
     {
-        $payload = $this->createPayload($job, $data);
-        $id = md5($payload);
-        $doc = $this->database->getCollection($this->table)->findOne(
-            [
-                'unique_id' => $id,
-            ]
-        );
-        if (!$doc) {
-            return $this->pushToDatabase(0, $queue, $payload);
+        if (isset($job->duplicate) && !$job->duplicate) {
+            $payload = $this->createPayload($job, $data);
+            $id = md5($payload);
+            if (!$this->database->table($this->table)->where(['unique_id' => $id])->exists()) {
+                return $this->pushToDatabase(0, $queue, $payload);
+            }
+        }
+        else {
+            return parent::push($job, $data, $queue);
         }
     }
+
 
     /**
      * Get the next available job for the queue and mark it as reserved.
